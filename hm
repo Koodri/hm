@@ -1,0 +1,166 @@
+import random
+
+class Territorio:
+    def __init__(self, nombre, valor_estrategico, propietario=None, ejercitos=0):
+        self.nombre = nombre
+        self.valor_estrategico = valor_estrategico
+        self.propietario = propietario
+        self.ejercitos = ejercitos
+
+    def __str__(self):
+        propietario = self.propietario.nombre if self.propietario else "Nadie"
+        return f"{self.nombre} (Propietario: {propietario}, Ejércitos: {self.ejercitos})"
+
+class Jugador:
+    def __init__(self, nombre):
+        self.nombre = nombre
+        self.territorios = []
+        self.ejercitos = 0
+
+    def agregar_territorio(self, territorio):
+        self.territorios.append(territorio)
+
+    def calcular_ejercitos_por_turno(self):
+        total_valor_estrategico = sum(t.valor_estrategico for t in self.territorios)
+        self.ejercitos = max(3, total_valor_estrategico // 2)
+
+    def mover_ejercitos(self, origen, destino, cantidad):
+        if origen in self.territorios and destino in self.territorios and origen != destino:
+            cantidad = min(cantidad, origen.ejercitos)  # No mover más ejércitos de los que hay en el origen
+            origen.ejercitos -= cantidad
+            destino.ejercitos += cantidad
+
+    def atacar_territorio(self, origen, destino, cantidad):
+        if origen in self.territorios and destino.propietario != self and cantidad <= origen.ejercitos:
+            cantidad = min(cantidad, origen.ejercitos)  # No atacar con más ejércitos de los que hay en el origen
+            resultado_ataque = cantidad + random.randint(1, 6)
+            if resultado_ataque >= destino.ejercitos:
+                # El territorio ha sido conquistado
+                destino.propietario = self
+                destino.ejercitos = resultado_ataque - destino.ejercitos
+                self.agregar_territorio(destino)
+            else:
+                destino.ejercitos -= resultado_ataque
+
+class JuegoEstrategia:
+    def __init__(self):
+        self.territorios = []
+        self.jugadores = []
+        self.turno_actual = 0
+
+    def crear_territorios(self):
+        # Crea una lista de territorios con sus valores estratégicos.
+        territorios = [
+            Territorio("Territorio 1", 2),
+            Territorio("Territorio 2", 1),
+            # Agregar más territorios aquí...
+        ]
+        self.territorios = territorios
+
+    def crear_jugadores(self, num_jugadores):
+        # Crea la cantidad de jugadores especificada.
+        self.jugadores = [Jugador(f"Jugador {i+1}") for i in range(num_jugadores)]
+
+    def asignar_territorios_iniciales(self):
+        # Asigna aleatoriamente los territorios iniciales a los jugadores sin repetición.
+        territorios_disponibles = self.territorios.copy()
+        random.shuffle(territorios_disponibles)
+        for jugador in self.jugadores:
+            territorio_asignado = territorios_disponibles.pop()
+            territorio_asignado.propietario = jugador
+            jugador.agregar_territorio(territorio_asignado)
+
+    def iniciar_juego(self):
+        num_jugadores = int(input("Ingresa la cantidad de jugadores (2 o más): "))
+        if num_jugadores < 2:
+            print("Deben haber al menos dos jugadores para comenzar el juego.")
+            return
+
+        self.crear_jugadores(num_jugadores)
+        self.crear_territorios()
+        self.asignar_territorios_iniciales()
+        print("\n¡Comienza el juego!")
+
+        while not self.hay_ganador() and self.turno_actual < 100:  # Limitamos el número de turnos para evitar un bucle infinito
+            jugador_actual = self.jugadores[self.turno_actual % num_jugadores]
+            print(f"\nTurno de {jugador_actual.nombre}")
+            self.realizar_turno(jugador_actual)
+            self.turno_actual += 1
+
+        print("\n¡Fin del juego!")
+
+    def realizar_turno(self, jugador):
+        jugador.calcular_ejercitos_por_turno()
+        self.mostrar_estado()
+
+        # Implementar lógica para que el jugador realice sus acciones en su turno.
+        # Ejemplo: Pedir al jugador que elija una acción (mover ejércitos, atacar, etc.) y realizar la acción.
+        self.mostrar_opciones(jugador)
+        opcion = input("Elige una opción: ").lower()
+
+        if opcion == "mover":
+            origen = self.elegir_territorio("Origen", jugador)
+            destino = self.elegir_territorio("Destino", jugador)
+            cantidad = int(input("Ingresa la cantidad de ejércitos a mover: "))
+            jugador.mover_ejercitos(origen, destino, cantidad)
+
+        elif opcion == "atacar":
+            origen = self.elegir_territorio("Origen", jugador)
+            destino = self.elegir_territorio_enemigo(jugador)
+            cantidad = int(input("Ingresa la cantidad de ejércitos a atacar: "))
+            jugador.atacar_territorio(origen, destino, cantidad)
+
+        # Llamamos a la función para actualizar el estado de los jugadores después de cada turno
+        self.actualizar_estado_jugador()
+
+    def mostrar_opciones(self, jugador):
+        print(f"\nOpciones para {jugador.nombre}:")
+        print("1. Mover ejércitos")
+        print("2. Atacar territorio enemigo")
+
+    def elegir_territorio(self, mensaje, jugador):
+        print(f"\nTerritorios disponibles para {mensaje}:")
+        for i, territorio in enumerate(jugador.territorios):
+            print(f"{i + 1}. {territorio}")
+
+        while True:
+            opcion = int(input("Elige un territorio: "))
+            if 1 <= opcion <= len(jugador.territorios):
+                return jugador.territorios[opcion - 1]
+            else:
+                print("Opción inválida. Inténtalo nuevamente.")
+
+    def elegir_territorio_enemigo(self, jugador):
+        print("\nTerritorios enemigos:")
+        territorios_enemigos = [territorio for territorio in self.territorios if territorio.propietario != jugador]
+        for i, territorio in enumerate(territorios_enemigos):
+            print(f"{i + 1}. {territorio}")
+
+        while True:
+            opcion = int(input("Elige un territorio enemigo: "))
+            if 1 <= opcion <= len(territorios_enemigos):
+                return territorios_enemigos[opcion - 1]
+            else:
+                print("Opción inválida. Inténtalo nuevamente.")
+
+    def hay_ganador(self):
+        return any(len(jugador.territorios) == len(self.territorios) for jugador in self.jugadores)
+
+    def mostrar_estado(self):
+        print("\nEstado actual del juego:")
+        for territorio in self.territorios:
+            print(territorio)
+        for jugador in self.jugadores:
+            print(f"{jugador.nombre} tiene {jugador.ejercitos} ejércitos disponibles.")
+
+    # Función para actualizar el estado de los jugadores después de cada turno
+    def actualizar_estado_jugador(self):
+        for jugador in self.jugadores:
+            jugador.ejercitos = sum(territorio.ejercitos for territorio in jugador.territorios)
+
+def main():
+    juego = JuegoEstrategia()
+    juego.iniciar_juego()
+
+if __name__ == "__main__":
+    main()
